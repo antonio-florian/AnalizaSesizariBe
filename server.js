@@ -98,7 +98,7 @@ app.post('/api/posts', async (req, res) => {
         res.status(201).json({ postId: result.rows[0].id });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Database error' });
+        res.status(500).json({ error: 'Database posts error' });
     }
 });
 
@@ -112,20 +112,23 @@ const analyzeSentiment = (text) => {
 app.post('/api/posts/:post_id/comments', async (req, res) => {
     const { content } = req.body;
     const studentId = 2; // Hardcoded for now, replace with real student ID from Auth0 later
-    const postId = req.params.post_id;
+    const postId = parseInt(req.params.post_id, 10);
+
+    if (isNaN(postId)) {
+        return res.status(400).json({ error: 'Invalid post ID' });
+    }
 
     const sentiment = analyzeSentiment(content);
     try {
-        await client.query(
-            'INSERT INTO Comments (post_id, student_id, content, timestamp, sentiment) VALUES ($1, $2, $3, NOW(), $4)',
-            [postId, studentId, content, sentiment]
-        );
-        res.status(201).json({ message: 'Comment added with sentiment analysis.' });
+    await client.query('INSERT INTO Comments (post_id, student_id, content, timestamp, sentiment) VALUES ($1, $2, $3, NOW(), $4)', [postId, studentId, content, sentiment]);
+
+    res.status(201).json({ message: 'Comment added with sentiment analysis.' });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Database error' });
+        res.status(500).json({ error: 'Database post comment error' });
     }
 });
+
 
 // Fetch All Posts
 app.get('/api/posts', async (req, res) => {
@@ -138,9 +141,27 @@ app.get('/api/posts', async (req, res) => {
     }
 });
 
+// Fetch a specific post by ID
+app.get('/api/posts/:post_id', async (req, res) => {
+    const postId = req.params.post_id;
+    try {
+        const result = await client.query('SELECT * FROM Posts WHERE id = $1', [postId]);
+        if (result.rows.length > 0) {
+            res.status(200).json(result.rows[0]);
+        } else {
+            res.status(404).json({ error: 'Post not found' });
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Database error' });
+    }
+});
+
+
 // Fetch Comments for a Specific Post
 app.get('/api/posts/:post_id/comments', async (req, res) => {
     const postId = req.params.post_id;
+    console.log(`${postId}`)
     try {
         const result = await client.query('SELECT * FROM Comments WHERE post_id = $1', [postId]);
         res.status(200).json(result.rows);
